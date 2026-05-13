@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HELM Autopilot — Pilotage Post-Déploiement IA</title>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #F8F6F1; font-family: 'DM Sans', sans-serif; -webkit-font-smoothing: antialiased; }
+  #root { height: 100vh; }
+  ::-webkit-scrollbar { width: 3px; height: 3px; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+const AUTOMATIONS = [
+  { id: "devis", name: "Génération de devis", description: "Crée un devis personnalisé à partir d'une demande client", icon: "📋", active: true,
+    stats: { executions: 47, success: 44, errors: 3, lastRun: "Il y a 12 min", timeSaved: "9h20" },
+    logs: [
+      { time: "14:32", status: "success", message: "Devis généré pour Martin Dupont — Rénovation cuisine 45m²" },
+      { time: "11:15", status: "success", message: "Devis généré pour Sophie Laurent — Plomberie urgence" },
+      { time: "09:48", status: "error", message: "Données manquantes : surface non renseignée" },
+      { time: "Hier 16:20", status: "success", message: "Devis généré pour Jean Moreau — Électricité complète" },
+    ], trend: [12, 8, 15, 11, 9, 14, 7] },
+  { id: "relance", name: "Relance prospects", description: "Relance automatique des prospects sans réponse après 3 jours", icon: "🔔", active: true,
+    stats: { executions: 89, success: 87, errors: 2, lastRun: "Il y a 2h", timeSaved: "14h30" },
+    logs: [
+      { time: "12:00", status: "success", message: "Relance J+3 envoyée à 8 prospects — Taux ouverture 62%" },
+      { time: "Hier 12:00", status: "success", message: "Relance J+7 envoyée à 3 prospects" },
+      { time: "Hier 09:00", status: "error", message: "Échec envoi : quota Gmail dépassé (résolu)" },
+    ], trend: [20, 25, 18, 30, 22, 19, 28] },
+  { id: "onboarding", name: "Onboarding locataire", description: "Parcours d'accueil automatisé pour les nouveaux locataires", icon: "🔑", active: false,
+    stats: { executions: 12, success: 12, errors: 0, lastRun: "Il y a 5 jours", timeSaved: "4h00" },
+    logs: [
+      { time: "5j", status: "success", message: "Onboarding complet pour Famille Renard — Apt 3B" },
+      { time: "12j", status: "success", message: "Onboarding complet pour M. Chen — Studio 1A" },
+    ], trend: [2, 0, 3, 1, 0, 2, 0] },
+  { id: "sav", name: "SAV & réclamations", description: "Traitement et routing automatique des demandes SAV", icon: "🛠️", active: true,
+    stats: { executions: 34, success: 32, errors: 2, lastRun: "Il y a 45 min", timeSaved: "6h50" },
+    logs: [
+      { time: "13:47", status: "success", message: "Demande urgente routée → équipe technique (fuite eau)" },
+      { time: "10:22", status: "success", message: "Demande standard traitée → délai 48h confirmé" },
+      { time: "Hier 15:30", status: "error", message: "Catégorisation IA incertaine — nécessite validation" },
+    ], trend: [8, 5, 9, 7, 11, 6, 8] },
+];
+
+const AI_ANALYSES = {
+  devis: {
+    summary: "Votre automatisation de devis fonctionne très bien avec un taux de succès de 93,6%. J'ai identifié 3 opportunités d'amélioration.",
+    insights: [
+      { type: "opportunity", text: "Les devis envoyés entre 8h et 10h ont un taux de conversion 40% supérieur. Je recommande d'ajouter un délai programmé pour les demandes reçues le soir." },
+      { type: "warning", text: "3 erreurs sur 47 exécutions sont dues à des données manquantes (surface non renseignée). Ajouter une validation du formulaire d'entrée réduirait ces erreurs à 0." },
+      { type: "opportunity", text: "Les devis pour les projets > 5 000 € ont un taux d'acceptation de 28% seulement. Un message de suivi personnalisé à J+5 pourrait améliorer ce chiffre." },
+    ],
+    recommendation: "Ajouter un délai d'envoi optimal et une validation des données d'entrée. Estimé : +15% de conversions.",
+  },
+  relance: {
+    summary: "Performance excellente — 89 exécutions, 97,8% de succès. Votre séquence de relance est l'automatisation la plus rentable de votre stack.",
+    insights: [
+      { type: "opportunity", text: "Le taux d'ouverture de 62% est excellent (moyenne secteur : 38%). Les relances J+3 surperforment. Envisagez d'ajouter une relance J+10 pour les prospects encore silencieux." },
+      { type: "info", text: "Le dépassement de quota Gmail du 18/11 était ponctuel. Votre volume actuel est à 67% du quota journalier — aucun risque à court terme." },
+      { type: "opportunity", text: "Aucune personnalisation selon le type de bien recherché. Segmenter les relances (acheteurs vs locataires) pourrait augmenter le taux de réponse de 20–30%." },
+    ],
+    recommendation: "Ajouter une relance J+10 et segmenter par type de prospect. Estimé : +8 prospects réengagés/mois.",
+  },
+  onboarding: {
+    summary: "Automatisation actuellement désactivée. 12 exécutions sans erreur — performances parfaites quand elle est active.",
+    insights: [
+      { type: "info", text: "L'automatisation a été désactivée il y a 5 jours. Si c'est volontaire (période creuse), c'est normal. Sinon, je peux l'analyser." },
+      { type: "opportunity", text: "100% de succès sur 12 exécutions. C'est votre automatisation la plus fiable. Envisagez d'y ajouter un sondage de satisfaction à J+7." },
+    ],
+    recommendation: "Réactiver si vous avez des entrées prévues. Ajouter un sondage satisfaction pour mesurer l'impact client.",
+  },
+  sav: {
+    summary: "Bonne performance globale (94,1% de succès) mais 2 erreurs de catégorisation méritent attention.",
+    insights: [
+      { type: "warning", text: "2 erreurs de catégorisation IA sur les demandes ambiguës. Le prompt actuel manque d'exemples pour les cas mixtes (ex: fuite + odeur). J'ai préparé 3 exemples à ajouter." },
+      { type: "opportunity", text: "Les demandes urgentes (fuite, électricité) sont bien détectées (100%). Pour les demandes standard, le délai de réponse confirmé est de 48h — vos clients apprécieraient une confirmation sous 1h." },
+      { type: "info", text: "Pic de demandes le lundi matin (9h-11h). Aucune action nécessaire — le système gère bien la charge." },
+    ],
+    recommendation: "Améliorer le prompt de catégorisation avec des exemples. Estimé : réduction des erreurs à 0.",
+  },
+};
+
+const SYSTEM_PROMPT = (a) => `Tu es HELM Autopilot, l'assistant IA de suivi post-déploiement.
+Automatisation : ${a.name} — ${a.description}
+Statut : ${a.active ? "Active" : "Inactive"} | Exécutions : ${a.stats.executions} (${a.stats.errors} erreurs) | Temps gagné : ${a.stats.timeSaved}
+Rôle : expliquer simplement, identifier les problèmes, suggérer des améliorations. Zéro jargon. Si amélioration complexe → orienter vers le consultant.`;
+
+const now = () => new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+
+const C = {
+  bg: "#F8F6F1", bgAlt: "#F2EFE8", surface: "#FFFFFF",
+  border: "rgba(0,0,0,0.07)", borderMed: "rgba(0,0,0,0.12)",
+  gold: "#A07840", goldLight: "#C9A056", goldBg: "rgba(160,120,64,0.08)", goldBorder: "rgba(160,120,64,0.2)",
+  text: "#1C1917", textMed: "#4A4540", textMuted: "#8A867E", textDim: "#C0BCB4",
+  green: "#3A7A52", greenBg: "rgba(58,122,82,0.08)", greenBorder: "rgba(58,122,82,0.2)",
+  red: "#A84040", redBg: "rgba(168,64,64,0.08)", redBorder: "rgba(168,64,64,0.2)",
+  orange: "#B06030", orangeBg: "rgba(176,96,48,0.08)", orangeBorder: "rgba(176,96,48,0.2)",
+  purple: "#6858A8", purpleBg: "rgba(104,88,168,0.08)", purpleBorder: "rgba(104,88,168,0.2)",
+  shadow: "0 1px 3px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.04)",
+  shadowMd: "0 2px 8px rgba(0,0,0,0.07), 0 8px 32px rgba(0,0,0,0.06)",
+};
+
+const STYLES = `
+  @keyframes ap-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes ap-pulse{0%,100%{opacity:0.4;transform:scale(0.85)}50%{opacity:1;transform:scale(1)}}
+  @keyframes ap-spin{to{transform:rotate(360deg)}}
+  @keyframes ap-ping{0%{transform:scale(1);opacity:0.8}100%{transform:scale(2.2);opacity:0}}
+  textarea,input,button{font-family:'DM Sans',sans-serif}
+`;
+
+function HelmMark({ size = 28 }) {
+  return (
+    <div style={{ width: size, height: size, borderRadius: size * 0.26, background: "linear-gradient(145deg, #1C1917, #3A3530)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 2px 6px rgba(0,0,0,0.15)" }}>
+      <svg width={size * 0.48} height={size * 0.48} viewBox="0 0 20 20" fill="none">
+        <path d="M4 4L4 16M4 10L16 10M16 4L16 16" stroke="white" strokeWidth="1.6" strokeLinecap="round"/>
+      </svg>
+    </div>
+  );
+}
+
+function StatusDot({ active, size = 8 }) {
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <div style={{ width: size, height: size, borderRadius: "50%", background: active ? C.green : C.textDim }} />
+      {active && <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: C.green, animation: "ap-ping 1.8s ease-out infinite" }} />}
+    </div>
+  );
+}
+
+function MiniChart({ data, color, height = 40 }) {
+  const max = Math.max(...data), min = Math.min(...data), range = max - min || 1;
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: "3px", height }}>
+      {data.map((v, i) => {
+        const h = ((v - min) / range) * (height - 8) + 8;
+        return <div key={i} style={{ flex: 1, height: `${h}px`, borderRadius: "3px 3px 0 0", background: i === data.length - 1 ? color : `${color}44` }} />;
+      })}
+    </div>
+  );
+}
+
+function InsightChip({ type }) {
+  const cfg = {
+    opportunity: { label: "Opportunité", color: C.green, bg: C.greenBg, border: C.greenBorder, icon: "↑" },
+    warning: { label: "À corriger", color: C.orange, bg: C.orangeBg, border: C.orangeBorder, icon: "!" },
+    info: { label: "Info", color: C.purple, bg: C.purpleBg, border: C.purpleBorder, icon: "·" },
+  }[type] || {};
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: "100px", fontSize: "10px", color: cfg.color, fontFamily: "'DM Mono', monospace", letterSpacing: "0.06em", flexShrink: 0 }}>
+      {cfg.icon} {cfg.label}
+    </span>
+  );
+}
+
+function Bubble({ msg }) {
+  const isAI = msg.role === "assistant";
+  return (
+    <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", marginBottom: "14px", animation: "ap-fade 0.2s ease" }}>
+      <div style={{ width: "26px", height: "26px", borderRadius: "50%", flexShrink: 0, background: isAI ? C.goldBg : C.bgAlt, border: `1px solid ${isAI ? C.goldBorder : C.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", color: isAI ? C.gold : C.textMuted }}>
+        {isAI ? "◉" : "○"}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+          <span style={{ fontSize: "9px", letterSpacing: "0.12em", color: isAI ? C.gold : C.textMuted, fontFamily: "'DM Mono', monospace" }}>{isAI ? "HELM IA" : "VOUS"}</span>
+          <span style={{ fontSize: "9px", color: C.textDim, fontFamily: "'DM Mono', monospace" }}>{msg.time}</span>
+        </div>
+        <div style={{ background: isAI ? C.surface : C.bgAlt, border: `1px solid ${isAI ? C.border : "transparent"}`, borderRadius: "12px", padding: "10px 14px", fontSize: "13px", lineHeight: "1.7", color: C.text, whiteSpace: "pre-wrap", wordBreak: "break-word", boxShadow: isAI ? C.shadow : "none" }}>
+          {msg.content}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [automations, setAutomations] = useState(AUTOMATIONS);
+  const [activeId, setActiveId] = useState("devis");
+  const [tab, setTab] = useState("dashboard");
+  const [analysisTab, setAnalysisTab] = useState("insights");
+  const [msgs, setMsgs] = useState([{ role: "assistant", time: now(), content: "Bonjour 👋 Je suis HELM Autopilot, votre assistant post-déploiement.\n\nJe surveille vos automatisations en temps réel et je suis là pour vous aider à les comprendre, les optimiser, et intervenir si quelque chose cloche.\n\nQue puis-je faire pour vous ?" }]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [toggling, setToggling] = useState(null);
+  const bottomRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => { if (tab === "chat") bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, tab]);
+
+  const cur = automations.find(a => a.id === activeId);
+  const analysis = AI_ANALYSES[activeId];
+  const totalExec = automations.reduce((a, b) => a + b.stats.executions, 0);
+  const activeCount = automations.filter(a => a.active).length;
+
+  const toggle = (id) => {
+    setToggling(id);
+    setTimeout(() => {
+      setAutomations(p => p.map(a => a.id === id ? { ...a, active: !a.active } : a));
+      setToggling(null);
+    }, 800);
+  };
+
+  const send = async () => {
+    if (!input.trim() || loading) return;
+    const m = { role: "client", content: input.trim(), time: now() };
+    const newMsgs = [...msgs, m];
+    setMsgs(newMsgs); setInput(""); setLoading(true);
+    try {
+      const res = await fetch("/api/claude", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system: SYSTEM_PROMPT(cur), messages: newMsgs.map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content })) }),
+      });
+      const data = await res.json();
+      setMsgs(p => [...p, { role: "assistant", content: data.content?.find(b => b.type === "text")?.text || "Erreur.", time: now() }]);
+    } catch { setMsgs(p => [...p, { role: "assistant", content: "Erreur de connexion. Réessayez.", time: now() }]); }
+    setLoading(false);
+  };
+
+  const quicks = [
+    { label: "Tout va bien ?", msg: `Mon automatisation "${cur.name}" fonctionne normalement ?` },
+    { label: "Améliorer", msg: `Quelles améliorations suggères-tu pour "${cur.name}" ?` },
+    { label: "Erreurs", msg: `Explique les dernières erreurs de "${cur.name}" simplement.` },
+    { label: "ROI ce mois", msg: `Quel est l'impact concret de "${cur.name}" ce mois-ci ?` },
+  ];
+
+  const successRate = Math.round((cur.stats.success / cur.stats.executions) * 100);
+
+  return (
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: C.bg, color: C.text, fontFamily: "'DM Sans', sans-serif", overflow: "hidden" }}>
+      <style>{STYLES}</style>
+
+      {/* HEADER */}
+      <div style={{ padding: "10px 16px", background: C.surface, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: "10px", flexShrink: 0, boxShadow: "0 1px 0 rgba(0,0,0,0.04)" }}>
+        <HelmMark size={28} />
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "13px", fontFamily: "'Libre Baskerville', serif", letterSpacing: "0.06em" }}>HELM</span>
+            <span style={{ fontSize: "9px", color: C.gold, background: C.goldBg, border: `1px solid ${C.goldBorder}`, padding: "2px 8px", borderRadius: "100px", fontFamily: "'DM Mono', monospace", letterSpacing: "0.1em" }}>AUTOPILOT</span>
+          </div>
+          <div style={{ fontSize: "9px", color: C.textDim, fontFamily: "'DM Mono', monospace", letterSpacing: "0.08em", marginTop: "1px" }}>SUIVI POST-DÉPLOIEMENT</div>
+        </div>
+        <div style={{ display: "flex", gap: "16px" }}>
+          {[
+            { label: "ACTIVES", value: `${activeCount}/${automations.length}`, color: C.green },
+            { label: "EXÉCUTIONS", value: totalExec, color: C.text },
+            { label: "GAGNÉ", value: "34h40", color: C.gold },
+          ].map((k, i) => (
+            <div key={i} style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "14px", fontWeight: "600", color: k.color, lineHeight: 1 }}>{k.value}</div>
+              <div style={{ fontSize: "8px", color: C.textDim, fontFamily: "'DM Mono', monospace", letterSpacing: "0.07em", marginTop: "2px" }}>{k.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        {/* SIDEBAR */}
+        <div style={{ width: "196px", flexShrink: 0, borderRight: `1px solid ${C.border}`, background: C.surface, display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: "10px 14px 6px", fontSize: "9px", color: C.textDim, fontFamily: "'DM Mono', monospace", letterSpacing: "0.12em" }}>MES AUTOMATISATIONS</div>
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            {automations.map(a => {
+              const isActive = a.id === activeId;
+              return (
+                <button key={a.id} onClick={() => { setActiveId(a.id); setTab("dashboard"); }} style={{ width: "100%", textAlign: "left", padding: "10px 14px", background: isActive ? C.goldBg : "transparent", border: "none", borderLeft: `2px solid ${isActive ? C.gold : "transparent"}`, cursor: "pointer" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "3px" }}>
+                    <StatusDot active={a.active} size={7} />
+                    <span style={{ fontSize: "12px", fontWeight: isActive ? "500" : "400", color: isActive ? C.gold : C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: "10px", color: C.textMuted, fontFamily: "'DM Mono', monospace" }}>{a.stats.executions} exec.</span>
+                    {a.stats.errors > 0 && <span style={{ fontSize: "10px", color: C.red, fontFamily: "'DM Mono', monospace" }}>{a.stats.errors} err.</span>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* MAIN */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          {/* TABS */}
+          <div style={{ display: "flex", background: C.surface, borderBottom: `1px solid ${C.border}`, flexShrink: 0, padding: "0 16px" }}>
+            {[{ id: "dashboard", label: "Vue d'ensemble" }, { id: "analysis", label: "Analyse IA" }, { id: "logs", label: "Activité" }, { id: "chat", label: "Assistant" }].map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "10px 14px 9px", border: "none", background: "transparent", color: tab === t.id ? C.gold : C.textMuted, fontSize: "11px", fontFamily: "'DM Mono', monospace", letterSpacing: "0.06em", cursor: "pointer", borderBottom: tab === t.id ? `2px solid ${C.gold}` : "2px solid transparent", marginBottom: "-1px", whiteSpace: "nowrap" }}>
+                {t.label.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
+          {/* DASHBOARD */}
+          {tab === "dashboard" && (
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px" }}>
+              {/* Header auto */}
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "20px", gap: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ fontSize: "24px" }}>{cur.icon}</span>
+                  <div>
+                    <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: "20px", fontWeight: "400" }}>{cur.name}</div>
+                    <div style={{ fontSize: "12px", color: C.textMuted, marginTop: "1px" }}>{cur.description}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+                  <span style={{ fontSize: "11px", fontFamily: "'DM Mono', monospace", color: cur.active ? C.green : C.textMuted }}>{cur.active ? "ACTIVE" : "INACTIVE"}</span>
+                  <button onClick={() => toggle(cur.id)} disabled={toggling === cur.id} style={{ width: "44px", height: "24px", borderRadius: "12px", border: "none", background: cur.active ? C.green : C.textDim, cursor: toggling === cur.id ? "wait" : "pointer", position: "relative", transition: "background 0.3s" }}>
+                    <div style={{ position: "absolute", top: "3px", left: cur.active ? "22px" : "3px", width: "18px", height: "18px", borderRadius: "50%", background: "#fff", transition: "left 0.3s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }}>
+                      {toggling === cur.id && <div style={{ position: "absolute", inset: "3px", borderRadius: "50%", border: `2px solid ${C.gold}`, borderTop: "2px solid transparent", animation: "ap-spin 0.6s linear infinite" }} />}
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* KPIs */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px", marginBottom: "16px" }}>
+                {[
+                  { label: "EXÉCUTIONS", value: cur.stats.executions, sub: "ce mois", color: C.text },
+                  { label: "SUCCÈS", value: `${successRate}%`, sub: `${cur.stats.success} réussies`, color: C.green },
+                  { label: "ERREURS", value: cur.stats.errors, sub: cur.stats.errors > 0 ? "à corriger" : "parfait", color: cur.stats.errors > 0 ? C.red : C.green },
+                  { label: "TEMPS GAGNÉ", value: cur.stats.timeSaved, sub: "estimé", color: C.gold },
+                ].map((k, i) => (
+                  <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "14px", boxShadow: C.shadow }}>
+                    <div style={{ fontSize: "9px", color: C.textDim, fontFamily: "'DM Mono', monospace", letterSpacing: "0.09em", marginBottom: "6px" }}>{k.label}</div>
+                    <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: "22px", color: k.color, lineHeight: 1, marginBottom: "4px" }}>{k.value}</div>
+                    <div style={{ fontSize: "10px", color: C.textMuted }}>{k.sub}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Graphique + dernière exec */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
+                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "16px", boxShadow: C.shadow }}>
+                  <div style={{ fontSize: "10px", color: C.textMuted, fontFamily: "'DM Mono', monospace", letterSpacing: "0.08em", marginBottom: "12px" }}>7 DERNIERS JOURS</div>
+                  <MiniChart data={cur.trend} color={C.gold} height={48} />
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px" }}>
+                    {["L","M","M","J","V","S","D"].map((d, i) => <div key={i} style={{ fontSize: "9px", color: C.textDim, fontFamily: "'DM Mono', monospace", flex: 1, textAlign: "center" }}>{d}</div>)}
+                  </div>
+                </div>
+                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "16px", boxShadow: C.shadow }}>
+                  <div style={{ fontSize: "10px", color: C.textMuted, fontFamily: "'DM Mono', monospace", letterSpacing: "0.08em", marginBottom: "12px" }}>DERNIÈRE EXÉCUTION</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                    <StatusDot active={cur.active} size={8} />
+                    <span style={{ fontSize: "13px", fontWeight: "500" }}>{cur.stats.lastRun}</span>
+                  </div>
+                  {cur.logs[0] && (
+                    <div style={{ padding: "10px 12px", background: cur.logs[0].status === "success" ? C.greenBg : C.redBg, border: `1px solid ${cur.logs[0].status === "success" ? C.greenBorder : C.redBorder}`, borderRadius: "8px" }}>
+                      <div style={{ fontSize: "12px", color: cur.logs[0].status === "success" ? C.green : C.red, lineHeight: "1.5" }}>{cur.logs[0].message}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Reco IA */}
+              <div style={{ background: C.goldBg, border: `1px solid ${C.goldBorder}`, borderRadius: "12px", padding: "16px", display: "flex", gap: "12px" }}>
+                <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: C.gold, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", color: "#fff", flexShrink: 0 }}>◉</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: "10px", color: C.gold, fontFamily: "'DM Mono', monospace", letterSpacing: "0.1em", marginBottom: "5px" }}>RECOMMANDATION IA</div>
+                  <div style={{ fontSize: "13px", color: C.textMed, lineHeight: "1.65" }}>{analysis.recommendation}</div>
+                  <button onClick={() => setTab("analysis")} style={{ marginTop: "10px", background: "transparent", border: `1px solid ${C.goldBorder}`, borderRadius: "6px", padding: "5px 12px", color: C.gold, fontSize: "11px", fontFamily: "'DM Mono', monospace", cursor: "pointer" }}>
+                    Voir l'analyse complète →
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ANALYSIS */}
+          {tab === "analysis" && (
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px" }}>
+              <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: "18px", marginBottom: "6px" }}>Analyse IA — {cur.name}</div>
+              <div style={{ fontSize: "13px", color: C.textMuted, marginBottom: "20px", lineHeight: "1.65" }}>{analysis.summary}</div>
+              <div style={{ display: "flex", gap: "4px", marginBottom: "20px", background: C.bgAlt, borderRadius: "10px", padding: "4px" }}>
+                {[{ id: "insights", label: "Recommandations" }, { id: "optimize", label: "Optimisations" }].map(t => (
+                  <button key={t.id} onClick={() => setAnalysisTab(t.id)} style={{ flex: 1, padding: "8px", borderRadius: "8px", border: "none", background: analysisTab === t.id ? C.surface : "transparent", color: analysisTab === t.id ? C.gold : C.textMuted, fontSize: "11px", fontFamily: "'DM Mono', monospace", letterSpacing: "0.06em", cursor: "pointer", boxShadow: analysisTab === t.id ? C.shadow : "none" }}>
+                    {t.label.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              {analysisTab === "insights" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {analysis.insights.map((ins, i) => (
+                    <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "16px", boxShadow: C.shadow }}>
+                      <div style={{ marginBottom: "8px" }}><InsightChip type={ins.type} /></div>
+                      <div style={{ fontSize: "13.5px", color: C.textMed, lineHeight: "1.7" }}>{ins.text}</div>
+                    </div>
+                  ))}
+                  <button onClick={() => setTab("chat")} style={{ padding: "13px", background: `linear-gradient(135deg, ${C.gold}, #7A5A20)`, border: "none", borderRadius: "10px", color: "#fff", fontSize: "12px", fontFamily: "'DM Mono', monospace", letterSpacing: "0.08em", cursor: "pointer", boxShadow: "0 4px 16px rgba(160,120,64,0.35)" }}>
+                    Discuter de ces recommandations avec HELM →
+                  </button>
+                </div>
+              )}
+              {analysisTab === "optimize" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {[
+                    { title: "Optimisation du timing", desc: "L'IA a détecté que certaines exécutions seraient plus efficaces à un horaire différent.", action: "Appliquer le timing optimal", safe: true },
+                    { title: "Amélioration du prompt IA", desc: "Des ajustements du prompt Claude pourraient réduire les erreurs de 60%. Nécessite validation du consultant.", action: "Demander au consultant", safe: false },
+                    { title: "Ajout d'une validation", desc: "Ajouter une vérification des données d'entrée éviterait les erreurs dues à des champs manquants.", action: "Demander au consultant", safe: false },
+                  ].map((opt, i) => (
+                    <div key={i} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "16px", boxShadow: C.shadow }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px", gap: "8px" }}>
+                        <div style={{ fontWeight: "500", fontSize: "14px" }}>{opt.title}</div>
+                        <span style={{ fontSize: "9px", padding: "2px 8px", borderRadius: "100px", background: opt.safe ? C.greenBg : C.orangeBg, border: `1px solid ${opt.safe ? C.greenBorder : C.orangeBorder}`, color: opt.safe ? C.green : C.orange, fontFamily: "'DM Mono', monospace", flexShrink: 0 }}>
+                          {opt.safe ? "AUTONOME" : "CONSULTANT"}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "13px", color: C.textMuted, lineHeight: "1.65", marginBottom: "12px" }}>{opt.desc}</div>
+                      <button onClick={() => setTab("chat")} style={{ background: "transparent", border: `1px solid ${opt.safe ? C.greenBorder : C.goldBorder}`, borderRadius: "7px", padding: "6px 14px", color: opt.safe ? C.green : C.gold, fontSize: "11px", fontFamily: "'DM Mono', monospace", cursor: "pointer" }}>
+                        {opt.action} →
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* LOGS */}
+          {tab === "logs" && (
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px" }}>
+              <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: "18px", marginBottom: "16px" }}>Activité récente — {cur.name}</div>
+              {cur.logs.map((log, i) => (
+                <div key={i} style={{ display: "flex", gap: "12px", alignItems: "flex-start", padding: "14px 0", borderBottom: `1px solid ${C.border}` }}>
+                  <div style={{ width: "36px", height: "36px", borderRadius: "50%", flexShrink: 0, background: log.status === "success" ? C.greenBg : C.redBg, border: `1px solid ${log.status === "success" ? C.greenBorder : C.redBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", color: log.status === "success" ? C.green : C.red }}>
+                    {log.status === "success" ? "✓" : "!"}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "13.5px", lineHeight: "1.5", marginBottom: "4px" }}>{log.message}</div>
+                    <div style={{ fontSize: "10px", color: C.textDim, fontFamily: "'DM Mono', monospace" }}>{log.time}</div>
+                  </div>
+                  <div style={{ fontSize: "10px", padding: "3px 9px", borderRadius: "100px", background: log.status === "success" ? C.greenBg : C.redBg, color: log.status === "success" ? C.green : C.red, fontFamily: "'DM Mono', monospace", flexShrink: 0 }}>
+                    {log.status === "success" ? "SUCCÈS" : "ERREUR"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* CHAT */}
+          {tab === "chat" && (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              <div style={{ padding: "8px 16px", background: C.goldBg, borderBottom: `1px solid ${C.goldBorder}`, flexShrink: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "12px" }}>{cur.icon}</span>
+                <span style={{ fontSize: "11px", color: C.gold, fontFamily: "'DM Mono', monospace", letterSpacing: "0.06em" }}>Contexte : {cur.name}</span>
+                <StatusDot active={cur.active} size={7} />
+              </div>
+              <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+                {msgs.map((m, i) => <Bubble key={i} msg={m} />)}
+                {loading && (
+                  <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", marginBottom: "14px" }}>
+                    <div style={{ width: "26px", height: "26px", borderRadius: "50%", background: C.goldBg, border: `1px solid ${C.goldBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", color: C.gold }}>◉</div>
+                    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "10px 14px", boxShadow: C.shadow }}>
+                      <div style={{ display: "flex", gap: "4px" }}>
+                        {[0,1,2].map(i => <div key={i} style={{ width: "5px", height: "5px", borderRadius: "50%", background: C.gold, animation: `ap-pulse 1.3s ease-in-out ${i*0.22}s infinite` }} />)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={bottomRef} />
+              </div>
+              <div style={{ padding: "0 16px 8px", display: "flex", gap: "6px", overflowX: "auto", scrollbarWidth: "none", flexShrink: 0 }}>
+                {quicks.map((q, i) => <button key={i} onClick={() => { setInput(q.msg); inputRef.current?.focus(); }} style={{ flexShrink: 0, background: C.surface, border: `1px solid ${C.border}`, borderRadius: "100px", padding: "5px 12px", color: C.textMed, fontSize: "11px", cursor: "pointer", whiteSpace: "nowrap", boxShadow: C.shadow }}>{q.label}</button>)}
+              </div>
+              <div style={{ padding: "8px 16px 12px", background: C.surface, borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+                <div style={{ display: "flex", gap: "8px", alignItems: "flex-end", background: C.bgAlt, borderRadius: "12px", padding: "8px 8px 8px 14px", border: `1px solid ${C.border}` }}>
+                  <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={`Votre question sur "${cur.name}"…`} rows={2} style={{ flex: 1, background: "transparent", border: "none", color: C.text, fontSize: "13px", outline: "none", resize: "none", lineHeight: "1.6" }} />
+                  <button onClick={send} disabled={loading || !input.trim()} style={{ padding: "8px 16px", background: input.trim() && !loading ? `linear-gradient(135deg, ${C.gold}, #7A5A20)` : C.border, border: "none", borderRadius: "9px", color: input.trim() && !loading ? "#fff" : C.textDim, fontSize: "11px", fontFamily: "'DM Mono', monospace", cursor: input.trim() && !loading ? "pointer" : "not-allowed", flexShrink: 0, transition: "all 0.2s" }}>Envoyer</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
