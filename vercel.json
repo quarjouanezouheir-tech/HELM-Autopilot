@@ -1,3 +1,7 @@
 {
-  "name": "helm-autopilot"
+  "version": 2,
+  "builds": [
+    { "src": "api/claude.js", "use": "@vercel/node" },
+    { "src": "index.html", "use": "@vercel/static" }
+  ]
 }
