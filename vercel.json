@@ -4,7 +4,10 @@
     {
       "src": "api/app.js",
       "use": "@vercel/node",
-      "config": { "includeFiles": ["index.html"] }
+      "config": {
+        "includeFiles": ["index.html"],
+        "runtime": "nodejs20.x"
+      }
     }
   ],
   "routes": [
