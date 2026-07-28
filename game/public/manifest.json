@@ -1,0 +1,31 @@
+{
+  "name": "Survivor Fusion",
+  "short_name": "Survivor Fusion",
+  "description": "Survivor-like : survivez à des vagues d'ennemis, gagnez de l'XP et fusionnez des pouvoirs.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e0a18",
+  "theme_color": "#151021",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
